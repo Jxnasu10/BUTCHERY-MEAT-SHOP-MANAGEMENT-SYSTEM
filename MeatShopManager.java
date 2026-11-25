@@ -23,7 +23,7 @@ public MeatShopManager() {
     loadAll();
 }
 
-// INPUT METHODS
+// THE INPUT METHODS
 
 private String input(Scanner sc, String message) {
     System.out.print(message);
@@ -231,7 +231,7 @@ public void lowStockAlert() {
     if (!found) System.out.println("All products have sufficient stock.");
 }
 
-// CUSTOMER MANAGEMENT
+// CUSTOMER MANAGEMENT!!!
 
 public void registerCustomer(Scanner sc) {
     String id = input(sc, "Customer ID: ");
@@ -319,7 +319,7 @@ public void deleteCustomer(Scanner sc) {
     System.out.println("Customer deleted!");
 }
 
-// PURCHASE SYSTEM
+// PURCHASE SYSTEM!!!
 
 public void newPurchase(Scanner sc) {
     Customer c = customerMap.get(input(sc, "Customer ID: "));
@@ -479,7 +479,7 @@ public void salesReport() {
             });
 }
 
-// FILE HANDLING
+// FILE HANDLING!!!
 
 private void saveFile(String file, ArrayList<String> records) {
     try (PrintWriter w = new PrintWriter(new FileWriter(file))) {
