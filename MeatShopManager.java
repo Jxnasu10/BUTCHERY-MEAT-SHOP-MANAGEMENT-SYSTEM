@@ -1,20 +1,17 @@
-
-import java.io.*;
+import java.io.;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Scanner;
+import java.util.;
 
 public class MeatShopManager {
 
-private ArrayList<Product> products;
-private ArrayList<Customer> customers;
-private ArrayList<Sale> sales;
-private ArrayList<SaleItem> saleItems;
-private ArrayList<String> stockHistory;
+private ArrayList<Product> products = new ArrayList<>();
+private ArrayList<Customer> customers = new ArrayList<>();
+private ArrayList<Sale> sales = new ArrayList<>();
+private ArrayList<SaleItem> saleItems = new ArrayList<>();
+private ArrayList<String> stockHistory = new ArrayList<>();
 
-private HashMap<String, Product> productMap;
-private HashMap<String, Customer> customerMap;
+private HashMap<String, Product> productMap = new HashMap<>();
+private HashMap<String, Customer> customerMap = new HashMap<>();
 
 private final String PRODUCT_FILE = "products.txt";
 private final String CUSTOMER_FILE = "customers.txt";
@@ -23,1063 +20,603 @@ private final String DETAILS_FILE = "sale_details.txt";
 private final String STOCK_FILE = "stock_history.txt";
 
 public MeatShopManager() {
-
-    products = new ArrayList<Product>();
-    customers = new ArrayList<Customer>();
-    sales = new ArrayList<Sale>();
-    saleItems = new ArrayList<SaleItem>();
-    stockHistory = new ArrayList<String>();
-
-    productMap = new HashMap<String, Product>();
-    customerMap = new HashMap<String, Customer>();
-
-    loadProducts();
-    loadCustomers();
-    loadSales();
-    loadSaleItems();
-    loadStockHistory();
+    loadAll();
 }
 
-// INPUT VALIDATION
+// INPUT METHODS
 
-private String readText(Scanner sc, String message) {
+private String input(Scanner sc, String message) {
     System.out.print(message);
     return sc.nextLine().trim();
 }
 
-private double readDouble(Scanner sc, String message) {
-
+private double number(Scanner sc, String message) {
     while (true) {
         try {
             System.out.print(message);
+            double n = Double.parseDouble(sc.nextLine());
 
-            double value = Double.parseDouble(sc.nextLine());
-
-            if (Double.isNaN(value) || Double.isInfinite(value)) {
-                System.out.println("Please enter a valid number.");
-                continue;
-            }
-
-            return value;
+            if (Double.isFinite(n)) return n;
 
         } catch (NumberFormatException e) {
-            System.out.println("Invalid input. Please enter a number.");
+            // Ask again.
         }
+
+        System.out.println("Invalid number. Try again.");
     }
 }
 
-private int readInt(Scanner sc, String message) {
-
+private int choice(Scanner sc, String message) {
     while (true) {
         try {
             System.out.print(message);
             return Integer.parseInt(sc.nextLine());
-
         } catch (NumberFormatException e) {
-            System.out.println("Invalid input. Please enter a whole number.");
+            System.out.println("Invalid choice.");
         }
     }
 }
 
-private boolean validText(String... values) {
-
-    for (String value : values) {
-        if (value == null || value.trim().isEmpty()
-                || value.contains("|")) {
+private boolean valid(String... values) {
+    for (String s : values) {
+        if (s == null || s.trim().isEmpty() || s.contains("|"))
             return false;
-        }
     }
-
     return true;
-}
-
-private boolean validProductId(String id) {
-    return id.matches("[A-Za-z0-9_-]+");
 }
 
 // PRODUCT MANAGEMENT
 
 public void addProduct(Scanner sc) {
+    String id = input(sc, "Product ID: ");
 
-    System.out.println("\n========== ADD NEW PRODUCT ==========");
-
-    String id = readText(sc, "Enter Product ID: ");
-
-    if (!validProductId(id)) {
-        System.out.println("Use only letters, numbers, _ or - in the ID.");
+    if (!id.matches("[A-Za-z0-9_-]+") || productMap.containsKey(id)) {
+        System.out.println("Invalid or existing Product ID!");
         return;
     }
 
-    if (productMap.containsKey(id)) {
-        System.out.println("Product ID already exists!");
+    String name = input(sc, "Product Name: ");
+
+    System.out.println("[1] Meat  [2] Fish  [3] Seafood");
+    int cat = choice(sc, "Category: ");
+
+    if (!valid(name) || cat < 1 || cat > 3) {
+        System.out.println("Invalid product information.");
         return;
     }
 
-    String name = readText(sc, "Enter Product Name: ");
+    double price = number(sc, "Price per KG: ₱");
+    double stock = number(sc, "Initial Stock: ");
 
-    System.out.println("\nSelect Category:");
-    System.out.println("[1] Meat");
-    System.out.println("[2] Fish");
-    System.out.println("[3] Seafood");
-
-    int category = readInt(sc, "Enter choice: ");
-
-    if (category < 1 || category > 3) {
-        System.out.println("Invalid category!");
+    if (price <= 0 || stock < 0) {
+        System.out.println("Invalid price or stock.");
         return;
     }
 
-    double price = readDouble(sc, "Enter Price per KG: ₱");
-    double stock = readDouble(sc, "Enter Initial Stock (KG): ");
+    Product p = cat == 1 ? new Meat(id, name, price, stock)
+            : cat == 2 ? new Fish(id, name, price, stock)
+            : new Seafood(id, name, price, stock);
 
-    if (!validText(name) || price <= 0 || stock < 0) {
-        System.out.println("Invalid product information!");
-        return;
-    }
+    products.add(p);
+    productMap.put(id, p);
 
-    Product product;
+    stockHistory.add(LocalDate.now() + "|" + id + "|INITIAL STOCK|" + stock);
 
-    if (category == 1) {
-        product = new Meat(id, name, price, stock);
-    } else if (category == 2) {
-        product = new Fish(id, name, price, stock);
-    } else {
-        product = new Seafood(id, name, price, stock);
-    }
-
-    products.add(product);
-    productMap.put(id, product);
-
-    stockHistory.add(
-            LocalDate.now() + "|" + id + "|INITIAL STOCK|" + stock
-    );
-
-    saveProducts();
-    saveStockHistory();
-
+    saveAll();
     System.out.println("Product added successfully!");
 }
 
 public void viewAllProducts() {
-
-    System.out.println("\n================ PRODUCT INVENTORY ================");
-
-    if (products.isEmpty()) {
-        System.out.println("No products available.");
-        return;
-    }
-
+    System.out.println("\n================ PRODUCT LIST ================");
     System.out.printf("%-8s %-20s %-12s %-12s %-10s%n",
-            "ID", "PRODUCT NAME", "CATEGORY", "PRICE/KG", "STOCK");
+            "ID", "PRODUCT", "CATEGORY", "PRICE/KG", "STOCK");
 
-    System.out.println("--------------------------------------------------------------");
+    for (Product p : products) p.displayProduct();
 
-    for (Product product : products) {
-        product.displayProduct();
-    }
-
-    System.out.println("--------------------------------------------------------------");
     System.out.println("Total Products: " + products.size());
 }
 
 public void searchProduct(Scanner sc) {
+    Product p = productMap.get(input(sc, "Enter Product ID: "));
 
-    String id = readText(sc, "Enter Product ID: ");
-
-    Product product = productMap.get(id);
-
-    if (product == null) {
+    if (p == null) {
         System.out.println("Product not found.");
-        return;
+    } else {
+        p.displayProduct();
     }
-
-    System.out.println("\nProduct Information:");
-    System.out.printf("%-8s %-20s %-12s %-12s %-10s%n",
-            "ID", "PRODUCT NAME", "CATEGORY", "PRICE/KG", "STOCK");
-
-    product.displayProduct();
 }
 
 public void updateProduct(Scanner sc) {
+    Product p = productMap.get(input(sc, "Enter Product ID: "));
 
-    String id = readText(sc, "Enter Product ID to update: ");
-
-    Product product = productMap.get(id);
-
-    if (product == null) {
+    if (p == null) {
         System.out.println("Product not found.");
         return;
     }
 
-    String name = readText(sc, "Enter New Product Name: ");
-    double price = readDouble(sc, "Enter New Price per KG: ₱");
+    String name = input(sc, "New Name: ");
+    double price = number(sc, "New Price: ₱");
 
-    if (!validText(name) || price <= 0) {
-        System.out.println("Invalid product information!");
+    if (!valid(name) || price <= 0) {
+        System.out.println("Invalid information.");
         return;
     }
 
-    product.setProductName(name);
-    product.setPrice(price);
+    p.setProductName(name);
+    p.setPrice(price);
 
     saveProducts();
-
-    System.out.println("Product updated successfully!");
+    System.out.println("Product updated!");
 }
 
 public void deleteProduct(Scanner sc) {
+    String id = input(sc, "Enter Product ID: ");
 
-    String id = readText(sc, "Enter Product ID to delete: ");
+    Product p = productMap.get(id);
 
-    Product product = productMap.get(id);
-
-    if (product == null) {
+    if (p == null) {
         System.out.println("Product not found.");
         return;
     }
 
     for (SaleItem item : saleItems) {
         if (item.getProductId().equals(id)) {
-            System.out.println(
-                    "Cannot delete this product because it has sales history."
-            );
+            System.out.println("Cannot delete a product with sales history.");
             return;
         }
     }
 
-    products.remove(product);
+    products.remove(p);
     productMap.remove(id);
 
     saveProducts();
-
-    System.out.println("Product deleted successfully!");
+    System.out.println("Product deleted!");
 }
 
 // INVENTORY MANAGEMENT
 
 public void viewInventory() {
+    System.out.println("\n========== INVENTORY ==========");
 
-    System.out.println("\n============== CURRENT INVENTORY ==============");
-
-    System.out.printf("%-8s %-20s %-15s %-12s%n",
-            "ID", "PRODUCT", "STOCK", "STATUS");
-
-    System.out.println("------------------------------------------------");
-
-    for (Product product : products) {
-
-        String status = product.getStock() <= 5
-                ? "LOW STOCK!"
-                : "AVAILABLE";
-
-        System.out.printf("%-8s %-20s %-15.2f %-12s%n",
-                product.getProductId(),
-                product.getProductName(),
-                product.getStock(),
-                status);
+    for (Product p : products) {
+        System.out.printf("%-20s %.2f KG  %s%n",
+                p.getProductName(), p.getStock(),
+                p.getStock() <= 5 ? "[LOW STOCK]" : "[AVAILABLE]");
     }
 }
 
 public void restockProduct(Scanner sc) {
+    Product p = productMap.get(input(sc, "Product ID: "));
 
-    String id = readText(sc, "Enter Product ID to restock: ");
-
-    Product product = productMap.get(id);
-
-    if (product == null) {
+    if (p == null) {
         System.out.println("Product not found.");
         return;
     }
 
-    double quantity = readDouble(sc, "Enter Quantity to Add (KG): ");
+    double qty = number(sc, "Quantity to add: ");
 
-    if (quantity <= 0) {
-        System.out.println("Invalid quantity!");
+    if (qty <= 0) {
+        System.out.println("Invalid quantity.");
         return;
     }
 
-    product.setStock(product.getStock() + quantity);
+    p.setStock(p.getStock() + qty);
+    stockHistory.add(LocalDate.now() + "|" + p.getProductId()
+            + "|RESTOCK|" + qty);
 
-    stockHistory.add(
-            LocalDate.now() + "|" + id + "|RESTOCK|" + quantity
-    );
-
-    saveProducts();
-    saveStockHistory();
-
-    System.out.println("Stock updated successfully!");
-    System.out.println("New Stock: " + product.getStock() + " KG");
+    saveAll();
+    System.out.println("Stock updated!");
 }
 
 public void viewStockHistory() {
+    System.out.println("\n========== STOCK HISTORY ==========");
 
-    System.out.println("\n================ STOCK HISTORY ================");
-
-    if (stockHistory.isEmpty()) {
-        System.out.println("No stock history found.");
-        return;
-    }
-
-    System.out.printf("%-15s %-12s %-15s %-12s%n",
-            "DATE", "PRODUCT ID", "ACTION", "QUANTITY");
-
-    System.out.println("------------------------------------------------");
-
-    for (String record : stockHistory) {
-        String[] data = record.split("\\|", -1);
-
-        if (data.length == 4) {
-            System.out.printf("%-15s %-12s %-15s %-12s%n",
-                    data[0], data[1], data[2], data[3] + " KG");
-        }
-    }
+    for (String record : stockHistory)
+        System.out.println(record);
 }
 
 public void lowStockAlert() {
-
-    System.out.println("\n============== LOW STOCK PRODUCTS ==============");
+    System.out.println("\n========== LOW STOCK ALERT ==========");
 
     boolean found = false;
 
-    for (Product product : products) {
-
-        if (product.getStock() <= 5) {
-
-            System.out.printf("%-20s %-10.2f KG%n",
-                    product.getProductName(),
-                    product.getStock());
-
+    for (Product p : products) {
+        if (p.getStock() <= 5) {
+            System.out.println(p.getProductName() + " - "
+                    + p.getStock() + " KG");
             found = true;
         }
     }
 
-    if (!found) {
-        System.out.println("All products have sufficient stock!");
-    }
+    if (!found) System.out.println("All products have sufficient stock.");
 }
 
 // CUSTOMER MANAGEMENT
 
 public void registerCustomer(Scanner sc) {
+    String id = input(sc, "Customer ID: ");
 
-    System.out.println("\n========== REGISTER CUSTOMER ==========");
-
-    String id = readText(sc, "Enter Customer ID: ");
-
-    if (!validProductId(id)) {
-        System.out.println("Use only letters, numbers, _ or - in the ID.");
+    if (!id.matches("[A-Za-z0-9_-]+") || customerMap.containsKey(id)) {
+        System.out.println("Invalid or existing Customer ID!");
         return;
     }
 
-    if (customerMap.containsKey(id)) {
-        System.out.println("Customer ID already exists!");
+    String name = input(sc, "Customer Name: ");
+    String contact = input(sc, "Contact Number: ");
+
+    if (!valid(name, contact)) {
+        System.out.println("Invalid information.");
         return;
     }
 
-    String name = readText(sc, "Enter Customer Name: ");
-    String contact = readText(sc, "Enter Contact Number: ");
+    Customer c = new Customer(id, name, contact);
 
-    if (!validText(name, contact)) {
-        System.out.println("Invalid customer information!");
-        return;
-    }
-
-    Customer customer = new Customer(id, name, contact);
-
-    customers.add(customer);
-    customerMap.put(id, customer);
+    customers.add(c);
+    customerMap.put(id, c);
 
     saveCustomers();
-
-    System.out.println("Customer registered successfully!");
+    System.out.println("Customer registered!");
 }
 
 public void viewAllCustomers() {
+    System.out.println("\n========== CUSTOMER LIST ==========");
 
-    System.out.println("\n================ CUSTOMER LIST ================");
+    for (Customer c : customers) c.displayCustomer();
 
-    if (customers.isEmpty()) {
-        System.out.println("No customers registered.");
-        return;
-    }
-
-    System.out.printf("%-10s %-25s %-15s%n",
-            "ID", "CUSTOMER NAME", "CONTACT");
-
-    System.out.println("------------------------------------------------");
-
-    for (Customer customer : customers) {
-        customer.displayCustomer();
-    }
+    System.out.println("Total Customers: " + customers.size());
 }
 
 public void searchCustomer(Scanner sc) {
+    Customer c = customerMap.get(input(sc, "Customer ID: "));
 
-    String id = readText(sc, "Enter Customer ID: ");
-
-    Customer customer = customerMap.get(id);
-
-    if (customer == null) {
-        System.out.println("Customer not found.");
-        return;
-    }
-
-    customer.displayCustomer();
+    if (c == null) System.out.println("Customer not found.");
+    else c.displayCustomer();
 }
 
 public void updateCustomer(Scanner sc) {
+    Customer c = customerMap.get(input(sc, "Customer ID: "));
 
-    String id = readText(sc, "Enter Customer ID to update: ");
-
-    Customer customer = customerMap.get(id);
-
-    if (customer == null) {
+    if (c == null) {
         System.out.println("Customer not found.");
         return;
     }
 
-    String name = readText(sc, "Enter New Name: ");
-    String contact = readText(sc, "Enter New Contact Number: ");
+    String name = input(sc, "New Name: ");
+    String contact = input(sc, "New Contact: ");
 
-    if (!validText(name, contact)) {
-        System.out.println("Invalid customer information!");
+    if (!valid(name, contact)) {
+        System.out.println("Invalid information.");
         return;
     }
 
-    customer.setName(name);
-    customer.setContactNumber(contact);
+    c.setName(name);
+    c.setContactNumber(contact);
 
     saveCustomers();
-
-    System.out.println("Customer updated successfully!");
+    System.out.println("Customer updated!");
 }
 
 public void deleteCustomer(Scanner sc) {
+    String id = input(sc, "Customer ID: ");
+    Customer c = customerMap.get(id);
 
-    String id = readText(sc, "Enter Customer ID to delete: ");
-
-    Customer customer = customerMap.get(id);
-
-    if (customer == null) {
+    if (c == null) {
         System.out.println("Customer not found.");
         return;
     }
 
-    for (Sale sale : sales) {
-        if (sale.getCustomerId().equals(id)) {
-            System.out.println(
-                    "Cannot delete customer because they have sales history."
-            );
+    for (Sale s : sales) {
+        if (s.getCustomerId().equals(id)) {
+            System.out.println("Cannot delete a customer with sales history.");
             return;
         }
     }
 
-    customers.remove(customer);
+    customers.remove(c);
     customerMap.remove(id);
 
     saveCustomers();
-
-    System.out.println("Customer deleted successfully!");
+    System.out.println("Customer deleted!");
 }
 
-// CUSTOMER PURCHASE
+// PURCHASE SYSTEM
 
 public void newPurchase(Scanner sc) {
+    Customer c = customerMap.get(input(sc, "Customer ID: "));
 
-    if (products.isEmpty()) {
-        System.out.println("No products available.");
+    if (c == null || products.isEmpty()) {
+        System.out.println("Customer not found or no products available.");
         return;
     }
 
-    String customerId = readText(sc, "Enter Customer ID: ");
+    System.out.println("Welcome, " + c.getName() + "!");
 
-    Customer customer = customerMap.get(customerId);
-
-    if (customer == null) {
-        System.out.println("Customer not found. Register the customer first.");
-        return;
-    }
-
-    System.out.println("\nWelcome, " + customer.getName() + "!");
-
-    ArrayList<SaleItem> cart = new ArrayList<SaleItem>();
-
-    String transactionId = generateTransactionId();
+    String transactionId = "T" + String.format("%03d", sales.size() + 1);
+    ArrayList<SaleItem> cart = new ArrayList<>();
 
     while (true) {
-
         viewAllProducts();
 
-        String productId = readText(sc, "\nEnter Product ID: ");
+        Product p = productMap.get(input(sc, "Product ID: "));
 
-        Product product = productMap.get(productId);
-
-        if (product == null) {
-            System.out.println("Product not found!");
+        if (p == null) {
+            System.out.println("Product not found.");
             continue;
         }
 
-        double quantity = readDouble(sc, "Enter Quantity (KG): ");
-
-        if (quantity <= 0) {
-            System.out.println("Invalid quantity!");
-            continue;
-        }
-
-        double alreadyInCart = 0;
+        double qty = number(sc, "Quantity (KG): ");
+        double inCart = 0;
 
         for (SaleItem item : cart) {
-            if (item.getProductId().equals(productId)) {
-                alreadyInCart += item.getQuantity();
-            }
+            if (item.getProductId().equals(p.getProductId()))
+                inCart += item.getQuantity();
         }
 
-        if (quantity + alreadyInCart > product.getStock()) {
-            System.out.println("Not enough stock available!");
+        if (qty <= 0 || qty + inCart > p.getStock()) {
+            System.out.println("Invalid quantity or insufficient stock.");
             continue;
         }
 
-        SaleItem item = new SaleItem(
-                transactionId,
-                product.getProductId(),
-                product.getProductName(),
-                quantity,
-                product.getPrice()
-        );
+        cart.add(new SaleItem(transactionId, p.getProductId(),
+                p.getProductName(), qty, p.getPrice()));
 
-        cart.add(item);
-
-        System.out.println(product.getProductName() + " added to cart!");
-
-        String answer = readText(sc, "Add another product? (Y/N): ");
-
-        if (!answer.equalsIgnoreCase("Y")) {
+        if (!input(sc, "Add another product? (Y/N): ").equalsIgnoreCase("Y"))
             break;
-        }
     }
 
     if (cart.isEmpty()) {
-        System.out.println("Purchase cancelled. Cart is empty.");
+        System.out.println("Empty cart.");
         return;
     }
 
     double total = 0;
+    for (SaleItem item : cart) total += item.getSubtotal();
 
-    for (SaleItem item : cart) {
-        total += item.getSubtotal();
-    }
-
-    System.out.printf("%nTotal Amount: ₱%.2f%n", total);
+    System.out.printf("Total: ₱%.2f%n", total);
 
     double cash;
+    do {
+        cash = number(sc, "Cash received: ₱");
+        if (cash < total) System.out.println("Insufficient payment!");
+    } while (cash < total);
 
-    while (true) {
-
-        cash = readDouble(sc, "Enter Cash Received: ₱");
-
-        if (cash >= total) {
-            break;
-        }
-
-        System.out.println("Insufficient payment! Please try again.");
-    }
-
-    Sale sale = new Sale(
-            transactionId,
-            customer.getCustomerId(),
-            customer.getName(),
-            LocalDate.now().toString(),
-            total,
-            cash
-    );
-
-    // Deduct purchased products from inventory.
+    Sale sale = new Sale(transactionId, c.getCustomerId(),
+            c.getName(), LocalDate.now().toString(), total, cash);
 
     for (SaleItem item : cart) {
+        Product p = productMap.get(item.getProductId());
+        p.setStock(p.getStock() - item.getQuantity());
 
-        Product product = productMap.get(item.getProductId());
-
-        product.setStock(product.getStock() - item.getQuantity());
-
-        stockHistory.add(
-                LocalDate.now() + "|"
-                + product.getProductId()
-                + "|SALE|"
-                + item.getQuantity()
-        );
+        stockHistory.add(LocalDate.now() + "|" + p.getProductId()
+                + "|SALE|" + item.getQuantity());
     }
 
     sales.add(sale);
     saleItems.addAll(cart);
 
     saveAll();
-
     printReceipt(sale, cart);
 }
 
-private String generateTransactionId() {
-
-    int highest = 0;
-
-    for (Sale sale : sales) {
-
-        String id = sale.getTransactionId();
-
-        try {
-            int number = Integer.parseInt(id.substring(1));
-
-            if (number > highest) {
-                highest = number;
-            }
-
-        } catch (Exception e) {
-            // Ignore transaction IDs that do not follow T<number>.
-        }
-    }
-
-    return String.format("T%03d", highest + 1);
-}
-
 private void printReceipt(Sale sale, ArrayList<SaleItem> cart) {
-
-    System.out.println("\n================================================");
-    System.out.println("                 FRESH CUT");
-    System.out.println("              MEAT SHOP RECEIPT");
-    System.out.println("================================================");
-
-    System.out.println("Transaction ID: " + sale.getTransactionId());
-    System.out.println("Date: " + sale.getDate());
+    System.out.println("\n========================================");
+    System.out.println("             FRESH CUT");
+    System.out.println("          MEAT SHOP RECEIPT");
+    System.out.println("========================================");
+    System.out.println("Transaction: " + sale.getTransactionId());
     System.out.println("Customer: " + sale.getCustomerName());
-
-    System.out.println("------------------------------------------------");
-
-    System.out.printf("%-18s %-8s %-10s%n",
-            "PRODUCT", "QTY", "SUBTOTAL");
+    System.out.println("Date: " + sale.getDate());
+    System.out.println("----------------------------------------");
 
     for (SaleItem item : cart) {
-
-        System.out.printf("%-18s %-8.2f ₱%-10.2f%n",
-                item.getProductName(),
-                item.getQuantity(),
+        System.out.printf("%-18s %.2f KG  ₱%.2f%n",
+                item.getProductName(), item.getQuantity(),
                 item.getSubtotal());
     }
 
-    System.out.println("------------------------------------------------");
-
-    System.out.printf("TOTAL AMOUNT:       ₱%.2f%n", sale.getTotal());
-    System.out.printf("CASH RECEIVED:      ₱%.2f%n", sale.getCashReceived());
-    System.out.printf("CHANGE:             ₱%.2f%n", sale.getChange());
-
-    System.out.println("================================================");
-    System.out.println("       THANK YOU FOR YOUR PURCHASE!");
-    System.out.println("================================================");
+    System.out.println("----------------------------------------");
+    System.out.printf("TOTAL:          ₱%.2f%n", sale.getTotal());
+    System.out.printf("CASH:           ₱%.2f%n", sale.getCashReceived());
+    System.out.printf("CHANGE:         ₱%.2f%n", sale.getChange());
+    System.out.println("========================================");
+    System.out.println("     THANK YOU FOR YOUR PURCHASE!");
+    System.out.println("========================================");
 }
 
-// SALES RECORDS
+// SALES RECORDS AND REPORTS
 
 public void viewSalesRecords() {
+    System.out.println("\n========== SALES RECORDS ==========");
 
-    System.out.println("\n================ SALES RECORDS ================");
+    for (Sale s : sales) s.displaySale();
 
-    if (sales.isEmpty()) {
-        System.out.println("No sales records found.");
-        return;
-    }
-
-    System.out.printf("%-10s %-22s %-12s %-12s%n",
-            "TRANS ID", "CUSTOMER", "DATE", "TOTAL");
-
-    System.out.println("------------------------------------------------");
-
-    for (Sale sale : sales) {
-        sale.displaySale();
-    }
-
-    System.out.println("------------------------------------------------");
     System.out.println("Total Transactions: " + sales.size());
 }
 
-// SALES REPORT
-
 public void salesReport() {
-
-    System.out.println("\n============== SALES REPORT ==============");
-
     String today = LocalDate.now().toString();
 
-    double totalSales = 0;
-    double totalCash = 0;
-    double totalChange = 0;
-
+    double total = 0, cash = 0, change = 0, qty = 0;
     int transactions = 0;
-    double totalQuantity = 0;
 
-    HashMap<String, Double> productSales =
-            new HashMap<String, Double>();
+    HashMap<String, Double> sold = new HashMap<>();
 
-    for (Sale sale : sales) {
-
-        if (sale.getDate().equals(today)) {
-
-            totalSales += sale.getTotal();
-            totalCash += sale.getCashReceived();
-            totalChange += sale.getChange();
-
+    for (Sale s : sales) {
+        if (s.getDate().equals(today)) {
+            total += s.getTotal();
+            cash += s.getCashReceived();
+            change += s.getChange();
             transactions++;
 
             for (SaleItem item : saleItems) {
-
-                if (item.getTransactionId().equals(
-                        sale.getTransactionId())) {
-
-                    totalQuantity += item.getQuantity();
-
-                    double oldQuantity =
-                            productSales.containsKey(item.getProductId())
-                            ? productSales.get(item.getProductId())
-                            : 0.0;
-
-                    productSales.put(
-                            item.getProductId(),
-                            oldQuantity + item.getQuantity()
-                    );
+                if (item.getTransactionId().equals(s.getTransactionId())) {
+                    qty += item.getQuantity();
+                    sold.put(item.getProductId(),
+                            sold.getOrDefault(item.getProductId(), 0.0)
+                            + item.getQuantity());
                 }
             }
         }
     }
 
+    System.out.println("\n========== DAILY SALES REPORT ==========");
     System.out.println("Date: " + today);
-    System.out.println("------------------------------------------");
+    System.out.println("Transactions: " + transactions);
+    System.out.printf("Products Sold: %.2f KG%n", qty);
+    System.out.printf("Total Sales: ₱%.2f%n", total);
+    System.out.printf("Cash Received: ₱%.2f%n", cash);
+    System.out.printf("Change Given: ₱%.2f%n", change);
 
-    System.out.println("Total Transactions: " + transactions);
-    System.out.printf("Total Quantity Sold: %.2f KG%n", totalQuantity);
+    System.out.println("\n========== TOP SELLING PRODUCTS ==========");
 
-    System.out.printf("Total Sales: ₱%.2f%n", totalSales);
-    System.out.printf("Cash Received: ₱%.2f%n", totalCash);
-    System.out.printf("Change Given: ₱%.2f%n", totalChange);
-
-    System.out.println("------------------------------------------");
-    System.out.println("          TOP SELLING PRODUCTS");
-    System.out.println("------------------------------------------");
-
-    if (productSales.isEmpty()) {
-        System.out.println("No sales today.");
-        return;
-    }
-
-    ArrayList<String> sortedProducts =
-            new ArrayList<String>(productSales.keySet());
-
-    sortedProducts.sort((a, b) ->
-            Double.compare(productSales.get(b), productSales.get(a))
-    );
-
-    int rank = 1;
-
-    for (String id : sortedProducts) {
-
-        Product product = productMap.get(id);
-
-        String name = product != null
-                ? product.getProductName()
-                : id;
-
-        System.out.printf("%d. %-20s %.2f KG%n",
-                rank,
-                name,
-                productSales.get(id));
-
-        rank++;
-
-        if (rank > 5) {
-            break;
-        }
-    }
-
-    System.out.println("==========================================");
+    sold.entrySet().stream()
+            .sorted((a, b) -> Double.compare(b.getValue(), a.getValue()))
+            .limit(5)
+            .forEach(entry -> {
+                Product p = productMap.get(entry.getKey());
+                String name = p == null ? entry.getKey() : p.getProductName();
+                System.out.printf("%-20s %.2f KG%n", name, entry.getValue());
+            });
 }
 
 // FILE HANDLING
 
-private void saveProducts() {
-
-    try (PrintWriter writer =
-                 new PrintWriter(new FileWriter(PRODUCT_FILE))) {
-
-        for (Product product : products) {
-
-            writer.println(
-                    product.getProductId() + "|"
-                    + product.getProductName() + "|"
-                    + product.getCategory() + "|"
-                    + product.getPrice() + "|"
-                    + product.getStock()
-            );
-        }
-
+private void saveFile(String file, ArrayList<String> records) {
+    try (PrintWriter w = new PrintWriter(new FileWriter(file))) {
+        for (String record : records) w.println(record);
     } catch (IOException e) {
-        System.out.println("Error saving products: " + e.getMessage());
+        System.out.println("Error saving " + file);
     }
 }
 
-private void loadProducts() {
+private ArrayList<String> readFile(String file) {
+    ArrayList<String> records = new ArrayList<>();
 
-    File file = new File(PRODUCT_FILE);
-
-    if (!file.exists()) {
-        return;
-    }
-
-    try (BufferedReader reader =
-                 new BufferedReader(new FileReader(file))) {
-
+    try (BufferedReader r = new BufferedReader(new FileReader(file))) {
         String line;
-
-        while ((line = reader.readLine()) != null) {
-
-            String[] data = line.split("\\|", -1);
-
-            if (data.length != 5) {
-                continue;
-            }
-
-            String id = data[0];
-            String name = data[1];
-            String category = data[2];
-
-            double price = Double.parseDouble(data[3]);
-            double stock = Double.parseDouble(data[4]);
-
-            Product product = null;
-
-            if (category.equalsIgnoreCase("Meat")) {
-                product = new Meat(id, name, price, stock);
-
-            } else if (category.equalsIgnoreCase("Fish")) {
-                product = new Fish(id, name, price, stock);
-
-            } else if (category.equalsIgnoreCase("Seafood")) {
-                product = new Seafood(id, name, price, stock);
-            }
-
-            if (product != null && !productMap.containsKey(id)) {
-                products.add(product);
-                productMap.put(id, product);
-            }
-        }
-
-    } catch (Exception e) {
-        System.out.println("Error loading products: " + e.getMessage());
+        while ((line = r.readLine()) != null) records.add(line);
+    } catch (IOException e) {
+        // File may not exist yet.
     }
+
+    return records;
+}
+
+private void saveProducts() {
+    ArrayList<String> records = new ArrayList<>();
+
+    for (Product p : products) {
+        records.add(p.getProductId() + "|" + p.getProductName() + "|"
+                + p.getCategory() + "|" + p.getPrice() + "|" + p.getStock());
+    }
+
+    saveFile(PRODUCT_FILE, records);
 }
 
 private void saveCustomers() {
+    ArrayList<String> records = new ArrayList<>();
 
-    try (PrintWriter writer =
-                 new PrintWriter(new FileWriter(CUSTOMER_FILE))) {
-
-        for (Customer customer : customers) {
-
-            writer.println(
-                    customer.getCustomerId() + "|"
-                    + customer.getName() + "|"
-                    + customer.getContactNumber()
-            );
-        }
-
-    } catch (IOException e) {
-        System.out.println("Error saving customers: " + e.getMessage());
-    }
-}
-
-private void loadCustomers() {
-
-    File file = new File(CUSTOMER_FILE);
-
-    if (!file.exists()) {
-        return;
+    for (Customer c : customers) {
+        records.add(c.getCustomerId() + "|" + c.getName()
+                + "|" + c.getContactNumber());
     }
 
-    try (BufferedReader reader =
-                 new BufferedReader(new FileReader(file))) {
-
-        String line;
-
-        while ((line = reader.readLine()) != null) {
-
-            String[] data = line.split("\\|", -1);
-
-            if (data.length == 3 && !customerMap.containsKey(data[0])) {
-
-                Customer customer =
-                        new Customer(data[0], data[1], data[2]);
-
-                customers.add(customer);
-                customerMap.put(data[0], customer);
-            }
-        }
-
-    } catch (IOException e) {
-        System.out.println("Error loading customers: " + e.getMessage());
-    }
+    saveFile(CUSTOMER_FILE, records);
 }
 
 private void saveSales() {
+    ArrayList<String> records = new ArrayList<>();
 
-    try (PrintWriter writer =
-                 new PrintWriter(new FileWriter(SALES_FILE))) {
-
-        for (Sale sale : sales) {
-
-            writer.println(
-                    sale.getTransactionId() + "|"
-                    + sale.getCustomerId() + "|"
-                    + sale.getCustomerName() + "|"
-                    + sale.getDate() + "|"
-                    + sale.getTotal() + "|"
-                    + sale.getCashReceived() + "|"
-                    + sale.getChange()
-            );
-        }
-
-    } catch (IOException e) {
-        System.out.println("Error saving sales: " + e.getMessage());
-    }
-}
-
-private void loadSales() {
-
-    File file = new File(SALES_FILE);
-
-    if (!file.exists()) {
-        return;
+    for (Sale s : sales) {
+        records.add(s.getTransactionId() + "|" + s.getCustomerId()
+                + "|" + s.getCustomerName() + "|" + s.getDate()
+                + "|" + s.getTotal() + "|" + s.getCashReceived()
+                + "|" + s.getChange());
     }
 
-    try (BufferedReader reader =
-                 new BufferedReader(new FileReader(file))) {
-
-        String line;
-
-        while ((line = reader.readLine()) != null) {
-
-            String[] data = line.split("\\|", -1);
-
-            if (data.length == 7) {
-
-                Sale sale = new Sale(
-                        data[0],
-                        data[1],
-                        data[2],
-                        data[3],
-                        Double.parseDouble(data[4]),
-                        Double.parseDouble(data[5])
-                );
-
-                sales.add(sale);
-            }
-        }
-
-    } catch (Exception e) {
-        System.out.println("Error loading sales: " + e.getMessage());
-    }
+    saveFile(SALES_FILE, records);
 }
 
 private void saveSaleItems() {
+    ArrayList<String> records = new ArrayList<>();
 
-    try (PrintWriter writer =
-                 new PrintWriter(new FileWriter(DETAILS_FILE))) {
-
-        for (SaleItem item : saleItems) {
-
-            writer.println(
-                    item.getTransactionId() + "|"
-                    + item.getProductId() + "|"
-                    + item.getProductName() + "|"
-                    + item.getQuantity() + "|"
-                    + item.getPrice() + "|"
-                    + item.getSubtotal()
-            );
-        }
-
-    } catch (IOException e) {
-        System.out.println("Error saving sale details: " + e.getMessage());
-    }
-}
-
-private void loadSaleItems() {
-
-    File file = new File(DETAILS_FILE);
-
-    if (!file.exists()) {
-        return;
+    for (SaleItem i : saleItems) {
+        records.add(i.getTransactionId() + "|" + i.getProductId()
+                + "|" + i.getProductName() + "|" + i.getQuantity()
+                + "|" + i.getPrice() + "|" + i.getSubtotal());
     }
 
-    try (BufferedReader reader =
-                 new BufferedReader(new FileReader(file))) {
-
-        String line;
-
-        while ((line = reader.readLine()) != null) {
-
-            String[] data = line.split("\\|", -1);
-
-            if (data.length == 6) {
-
-                SaleItem item = new SaleItem(
-                        data[0],
-                        data[1],
-                        data[2],
-                        Double.parseDouble(data[3]),
-                        Double.parseDouble(data[4])
-                );
-
-                saleItems.add(item);
-            }
-        }
-
-    } catch (Exception e) {
-        System.out.println("Error loading sale details: " + e.getMessage());
-    }
+    saveFile(DETAILS_FILE, records);
 }
 
 private void saveStockHistory() {
-
-    try (PrintWriter writer =
-                 new PrintWriter(new FileWriter(STOCK_FILE))) {
-
-        for (String record : stockHistory) {
-            writer.println(record);
-        }
-
-    } catch (IOException e) {
-        System.out.println("Error saving stock history: " + e.getMessage());
-    }
+    saveFile(STOCK_FILE, stockHistory);
 }
 
-private void loadStockHistory() {
+private void loadAll() {
+    for (String line : readFile(PRODUCT_FILE)) {
+        try {
+            String[] d = line.split("\\|", -1);
+            if (d.length != 5 || productMap.containsKey(d[0])) continue;
 
-    File file = new File(STOCK_FILE);
+            double price = Double.parseDouble(d[3]);
+            double stock = Double.parseDouble(d[4]);
 
-    if (!file.exists()) {
-        return;
-    }
+            Product p = d[2].equalsIgnoreCase("Meat")
+                    ? new Meat(d[0], d[1], price, stock)
+                    : d[2].equalsIgnoreCase("Fish")
+                    ? new Fish(d[0], d[1], price, stock)
+                    : d[2].equalsIgnoreCase("Seafood")
+                    ? new Seafood(d[0], d[1], price, stock) : null;
 
-    try (BufferedReader reader =
-                 new BufferedReader(new FileReader(file))) {
-
-        String line;
-
-        while ((line = reader.readLine()) != null) {
-            stockHistory.add(line);
+            if (p != null) {
+                products.add(p);
+                productMap.put(d[0], p);
+            }
+        } catch (Exception e) {
+            System.out.println("Invalid product record skipped.");
         }
-
-    } catch (IOException e) {
-        System.out.println("Error loading stock history: " + e.getMessage());
     }
+
+    for (String line : readFile(CUSTOMER_FILE)) {
+        String[] d = line.split("\\|", -1);
+        if (d.length == 3 && !customerMap.containsKey(d[0])) {
+            Customer c = new Customer(d[0], d[1], d[2]);
+            customers.add(c);
+            customerMap.put(d[0], c);
+        }
+    }
+
+    for (String line : readFile(SALES_FILE)) {
+        try {
+            String[] d = line.split("\\|", -1);
+            if (d.length == 7) {
+                sales.add(new Sale(d[0], d[1], d[2], d[3],
+                        Double.parseDouble(d[4]),
+                        Double.parseDouble(d[5])));
+            }
+        } catch (Exception e) {
+            System.out.println("Invalid sale record skipped.");
+        }
+    }
+
+    for (String line : readFile(DETAILS_FILE)) {
+        try {
+            String[] d = line.split("\\|", -1);
+            if (d.length == 6) {
+                saleItems.add(new SaleItem(d[0], d[1], d[2],
+                        Double.parseDouble(d[3]),
+                        Double.parseDouble(d[4])));
+            }
+        } catch (Exception e) {
+            System.out.println("Invalid sale detail skipped.");
+        }
+    }
+
+    stockHistory.addAll(readFile(STOCK_FILE));
 }
 
 public void saveAll() {
-
     saveProducts();
     saveCustomers();
     saveSales();
@@ -1087,4 +624,3 @@ public void saveAll() {
     saveStockHistory();
 }
 }
-
